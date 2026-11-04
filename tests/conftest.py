@@ -56,6 +56,21 @@ def _no_real_settings_or_prompts(monkeypatch, tmp_path_factory):
 
     monkeypatch.setattr(main_window, "ask_open_path", no_open_dialog)
 
+    # Nothing opens a browser, Explorer or Notepad: tests replace window.open_url and friends.
+    from desktop_audio_recorder.ui import about, error_reporter
+
+    def no_external_open(*args, **kwargs):
+        pytest.fail(f"a real browser/Explorer/Notepad would have opened: {args}")
+
+    for module, name in (
+        (main_window, "open_url"),
+        (main_window, "open_folder"),
+        (error_reporter, "open_url"),
+        (error_reporter, "open_folder"),
+        (about, "open_file"),
+    ):
+        monkeypatch.setattr(module, name, no_external_open)
+
 
 @pytest.fixture(autouse=True)
 def _no_real_device_watch(monkeypatch):

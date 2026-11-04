@@ -56,6 +56,7 @@ from desktop_audio_recorder.processing.denoise import (
     denoise,
     estimate_noise_profile,
 )
+from desktop_audio_recorder.ui.theme import watch_theme
 from desktop_audio_recorder.ui.transport_bar import format_elapsed
 from desktop_audio_recorder.ui.workers import ProgressJob, SerialTaskRunner
 
@@ -265,7 +266,7 @@ class DenoiseDialog(QDialog):
 
         self.message_label = QLabel(self)
         self.message_label.setWordWrap(True)
-        self.message_label.setStyleSheet("color: rgb(230, 70, 60);")
+        watch_theme(self, lambda theme: self.message_label.setStyleSheet(theme.error_style))
         root.addWidget(self.message_label)
 
         self.buttons = QDialogButtonBox(self)

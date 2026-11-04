@@ -141,7 +141,7 @@ def _run(args: argparse.Namespace, argv: list[str], folder: Path | None) -> int:
         ini = str(args.smoke_test / "settings.ini")
         settings = Settings(QSettings(ini, QSettings.Format.IniFormat))
 
-    window = MainWindow(settings=settings)
+    window = MainWindow(settings=settings, log_dir=folder)
     # closeEvent covers the normal path; this covers app.quit() and session end.
     app.aboutToQuit.connect(window.shutdown)
     app.commitDataRequest.connect(window.commit_session_data)

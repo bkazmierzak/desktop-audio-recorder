@@ -3,7 +3,9 @@
 It drives the real window on the real default playback device: plays a quiet 1 kHz tone (through
 sounddevice) while recording 2 s, checks the recording's length and that the tone is in it,
 plays the clip back for a second, exports it as 16-bit WAV and 192 kbps MP3 and reads both back
-(soundfile: libsndfile + mpg123), checks that the log file is written, saves a screenshot, writes
+(soundfile: libsndfile + mpg123), opens Help > About (in a build, LICENSE and
+THIRD-PARTY-NOTICES.txt must be next to the exe), checks that the log file is written, saves
+screenshots, writes
 ``FOLDER/report.json`` and quits (exit code 0 when every check passed).
 
 Settings go to ``FOLDER/settings.ini``, never the registry (``app.main`` passes them in). It is
@@ -194,6 +196,31 @@ class SmokeTest(QObject):
                 ok = len(data) == clip.frames and file_rate == clip.sample_rate
             self.check(f"export {settings.format.value}", ok, **details)
         self.check("saved", not window.has_unsaved_changes)
+
+        # Help > About: in a release build, LICENSE and the notices are next to the exe.
+        from desktop_audio_recorder.ui import about
+
+        window.show_about()
+        yield (lambda: window.about_box is not None and window.about_box.isVisible()), 5, "About"
+        box = window.about_box
+        box.grab().save(str(self.folder / "about.png"))
+        buttons = [b.text() for b in box.buttons()]
+        notices, license_file = about.notices_path(), about.license_path()
+        notices_ok = notices is not None and notices.read_text(encoding="utf-8").startswith(
+            f"Desktop Audio Recorder {__version__}: third-party notices"
+        )
+        frozen = bool(getattr(sys, "frozen", False))
+        self.check(
+            "about",
+            f"{__version__}</h3>" in box.text()
+            and (not frozen or (notices_ok and license_file is not None))
+            and ("Third-party notices" in buttons) == (notices is not None),
+            frozen=frozen,
+            notices=str(notices) if notices else None,
+            license=str(license_file) if license_file else None,
+            buttons=buttons,
+        )
+        box.accept()
 
         # The log.
         from desktop_audio_recorder.app import log_dir

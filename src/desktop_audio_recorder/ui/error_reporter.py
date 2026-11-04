@@ -13,6 +13,8 @@ threads). Every exception is logged with its traceback. The dialog:
 * while one is open, further errors are only counted (the dialog says how many);
 * at most ``MAX_DIALOGS`` per session; after that, errors are only logged;
 * never during shutdown (``begin_shutdown()``, or ``QCoreApplication.closingDown()``).
+
+Its buttons: OK, Open log folder, and Report a problem (a new GitHub issue).
 """
 
 from __future__ import annotations
@@ -31,13 +33,26 @@ from PySide6.QtCore import QCoreApplication, QObject, Qt, QThread, QUrl, Signal,
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import QApplication, QMessageBox, QWidget
 
-from desktop_audio_recorder import APP_NAME
+from desktop_audio_recorder import APP_NAME, NEW_ISSUE_URL
 
 log = logging.getLogger(__name__)
 
 MAX_DIALOGS = 3
 
 ExcInfo = tuple[type[BaseException], BaseException, TracebackType | None]
+
+
+def open_folder(folder: Path) -> None:
+    """Show a folder in Explorer."""
+    if sys.platform == "win32":
+        os.startfile(folder)  # noqa: S606 - opens Explorer on our own folder
+    else:  # pragma: no cover
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(folder)))
+
+
+def open_url(url: str) -> None:
+    """Open a web page in the default browser."""
+    QDesktopServices.openUrl(QUrl(url))
 
 
 def error_key(exc_type: type[BaseException], exc: BaseException, tb: TracebackType | None):
@@ -52,7 +67,8 @@ def error_key(exc_type: type[BaseException], exc: BaseException, tb: TracebackTy
 
 
 class ErrorReporter(QObject):
-    """See the module docstring. ``show_dialog(summary, details)`` is replaceable (tests)."""
+    """See the module docstring. ``show_dialog(summary, details)``, ``open_folder(path)`` and
+    ``open_url(url)`` are replaceable (tests)."""
 
     _report = Signal(str, str, object)  # summary, details, key (queued to the GUI thread)
 
@@ -67,6 +83,8 @@ class ErrorReporter(QObject):
         self._shutting_down = False
         self._previous_hooks: tuple | None = None
         self.show_dialog: Callable[[str, str], None] = self._show_message_box
+        self.open_folder: Callable[[Path], None] = open_folder
+        self.open_url: Callable[[str], None] = open_url
         self._report.connect(self._on_report, Qt.ConnectionType.QueuedConnection)
 
     # ------------------------------------------------------------------ install
@@ -184,6 +202,9 @@ class ErrorReporter(QObject):
         if self.log_dir is not None:
             open_logs = box.addButton("Open log folder", QMessageBox.ButtonRole.ActionRole)
             open_logs.clicked.connect(self._open_log_folder)
+        report = box.addButton("Report a problem", QMessageBox.ButtonRole.ActionRole)
+        report.setToolTip("Open a new issue on GitHub (please attach the end of app.log)")
+        report.clicked.connect(self._report_problem)
         box.setWindowModality(Qt.WindowModality.NonModal)
         box.finished.connect(self._on_dialog_finished)
         self._dialog = box
@@ -194,9 +215,8 @@ class ErrorReporter(QObject):
         self._dialog = None
 
     def _open_log_folder(self) -> None:
-        if self.log_dir is None:
-            return
-        if sys.platform == "win32":
-            os.startfile(self.log_dir)  # noqa: S606 - opens Explorer on our own folder
-        else:  # pragma: no cover
-            QDesktopServices.openUrl(QUrl.fromLocalFile(str(self.log_dir)))
+        if self.log_dir is not None:
+            self.open_folder(self.log_dir)
+
+    def _report_problem(self) -> None:
+        self.open_url(NEW_ISSUE_URL)

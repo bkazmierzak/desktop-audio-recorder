@@ -16,6 +16,8 @@ from PySide6.QtCore import QRectF, QSize, Qt, Signal
 from PySide6.QtGui import QColor, QFont, QLinearGradient, QPainter, QPaintEvent, QPen
 from PySide6.QtWidgets import QSizePolicy, QWidget
 
+from desktop_audio_recorder.ui.theme import Theme, watch_theme
+
 FLOOR_DB = -60.0
 DECAY_DB_PER_S = 24.0  # bar fall-back speed
 PEAK_HOLD_S = 1.5  # how long the peak-hold tick stays put before falling
@@ -127,6 +129,12 @@ class LevelMeter(QWidget):
         self.setMinimumWidth(200)
         self.setToolTip("Peak level (dBFS). CLIP lights when the signal goes over full scale.")
         self.setAccessibleName("Level meter")
+        self.theme: Theme
+        watch_theme(self, self._set_theme)
+
+    def _set_theme(self, theme: Theme) -> None:
+        self.theme = theme
+        self.update()
 
     # ------------------------------------------------------------------ API
 
@@ -184,11 +192,12 @@ class LevelMeter(QWidget):
         text_color = pal.color(pal.ColorRole.WindowText)
         font = QFont(self.font())
         font.setPointSizeF(max(6.5, font.pointSizeF() * 0.8))
-        # ClearType gives small labels on the dark trough coloured fringes.
+        # ClearType gives small labels on the trough coloured fringes.
         font.setStyleStrategy(QFont.StyleStrategy.NoSubpixelAntialias)
         p.setFont(font)
 
-        trough = QColor(32, 32, 36)
+        theme = self.theme
+        trough = theme.meter_trough
         for row, (label, ch) in enumerate(zip(("L", "R"), self.channels, strict=True)):
             rect = self._bar_rect(row)
             p.setPen(text_color)
@@ -214,11 +223,11 @@ class LevelMeter(QWidget):
             if ch.hold_db > ch.floor_db:
                 hx = rect.x() + rect.width() * ch.hold_fraction
                 hx = min(hx, rect.right() - 1)
-                p.fillRect(QRectF(hx - 1, rect.y(), 2, rect.height()), QColor(240, 240, 240))
+                p.fillRect(QRectF(hx - 1, rect.y(), 2, rect.height()), theme.meter_peak_tick)
 
             clip_rect = QRectF(rect.right() + self._GAP, rect.y(), self._CLIP_W, rect.height())
             p.fillRect(clip_rect, QColor(230, 30, 30) if ch.clipped else trough)
-            p.setPen(QColor(255, 255, 255) if ch.clipped else QColor(110, 110, 115))
+            p.setPen(QColor(255, 255, 255) if ch.clipped else theme.meter_clip_off_text)
             p.drawText(clip_rect, Qt.AlignmentFlag.AlignCenter, "CLIP")
 
         # dB scale under the bars.

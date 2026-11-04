@@ -53,6 +53,11 @@ is mixed to stereo and the file's own rate is kept. An opened file is never dele
 overwritten by the app: it counts as saved until edited, and Export suggests a new name next to
 it. A failed open goes back to the previous clip.
 
+Help: About (version, license, project link, the third-party notices), About Qt, Open log
+folder, and Report a problem (a new GitHub issue). Colours that the style doesn't provide (the
+status bar errors, the warning banner, the meter and the waveform) follow the palette's light or
+dark scheme, also when Windows switches while the app runs (``ui/theme.py``).
+
 Session end (``commit_session_data``, connected to ``QGuiApplication.commitDataRequest``): when
 Windows signs out, restarts or shuts down with an unsaved clip or a recording in progress, the
 window asks as it does on close; Save or Cancel cancels the sign-out. If Windows doesn't allow
@@ -87,13 +92,14 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QMainWindow,
+    QMessageBox,
     QProgressBar,
     QPushButton,
     QVBoxLayout,
     QWidget,
 )
 
-from desktop_audio_recorder import APP_NAME, __version__
+from desktop_audio_recorder import APP_NAME, NEW_ISSUE_URL, __version__
 from desktop_audio_recorder.audio import recovery
 from desktop_audio_recorder.audio.clip import AudioClip
 from desktop_audio_recorder.audio.devices import DeviceError, DeviceManager, LoopbackDevice
@@ -122,6 +128,7 @@ from desktop_audio_recorder.export.writers import Cancelled as ExportCancelled
 from desktop_audio_recorder.export.writers import ExportResult, export
 from desktop_audio_recorder.processing.denoise import Cancelled, DenoiseSettings, denoise
 from desktop_audio_recorder.settings import Settings
+from desktop_audio_recorder.ui import about
 from desktop_audio_recorder.ui.denoise_dialog import (
     DenoisePlan,
     DenoiseRequest,
@@ -130,6 +137,7 @@ from desktop_audio_recorder.ui.denoise_dialog import (
 )
 from desktop_audio_recorder.ui.device_watch import DeviceWatch
 from desktop_audio_recorder.ui.edit_toolbar import EditToolbar, ask_gain_db, ask_silence_seconds
+from desktop_audio_recorder.ui.error_reporter import open_folder, open_url
 from desktop_audio_recorder.ui.export_dialog import (
     OPEN_EXTENSIONS,
     ExportRequest,
@@ -155,6 +163,7 @@ from desktop_audio_recorder.ui.state import (
     has_progress,
     is_capturing,
 )
+from desktop_audio_recorder.ui.theme import LIGHT, Theme, watch_theme
 from desktop_audio_recorder.ui.transport_bar import PlaybackBar, TransportBar, format_elapsed
 from desktop_audio_recorder.ui.waveform_view import WaveformView
 from desktop_audio_recorder.ui.workers import ProgressJob, SerialTaskRunner
@@ -176,11 +185,6 @@ STALL_WARNING_S = 2.0
 SWITCH_DELAY_MS = 300
 # When the recorded device goes away, how long to wait for Windows to choose a new default.
 LOST_GRACE_MS = 1500
-_ERROR_STYLE = "QStatusBar { color: rgb(230, 70, 60); }"
-_WARNING_STYLE = (
-    "QLabel { background: rgb(255, 196, 0); color: rgb(30, 30, 30);"
-    " border-radius: 4px; padding: 6px 10px; }"
-)
 
 
 def device_summary(device: LoopbackDevice) -> str:
@@ -280,6 +284,7 @@ class MainWindow(QMainWindow):
         preview_player: Callable[[], ClipPlayer] = ClipPlayer,
         settings: Settings | None = None,
         device_watch: DeviceWatch | None = None,
+        log_dir: Path | None = None,
     ) -> None:
         super().__init__()
         self.setWindowTitle(f"{APP_NAME} {__version__}")
@@ -359,8 +364,18 @@ class MainWindow(QMainWindow):
         self._lost_timer.setSingleShot(True)
         self._lost_timer.setInterval(LOST_GRACE_MS)
         self._lost_timer.timeout.connect(self._on_lost_grace_over)
+        self._log_dir = log_dir
+        # Opening things outside the app (replaced in tests).
+        self.open_url: Callable[[str], None] = open_url
+        self.open_folder: Callable[[Path], None] = open_folder
+        self.open_path: Callable[[Path], None] = about.open_file
+        self.about_box: QMessageBox | None = None  # Help > About, while it is open
+        self._theme: Theme = LIGHT
+        self._status_error = False
+        self._device_missing = False
 
         self._build_ui()
+        watch_theme(self, self._set_theme)
         self._watch = device_watch if device_watch is not None else DeviceWatch(self)
         self._watch.changed.connect(self._on_endpoint_event)
         self.playback.loop_button.setChecked(self._settings.loop)
@@ -411,7 +426,6 @@ class MainWindow(QMainWindow):
 
         self.warning_label = QLabel(central)
         self.warning_label.setWordWrap(True)
-        self.warning_label.setStyleSheet(_WARNING_STYLE)
         self.warning_label.hide()
         root.addWidget(self.warning_label)
 
@@ -487,6 +501,24 @@ class MainWindow(QMainWindow):
         )
         self.follow_action.toggled.connect(self._on_follow_toggled)
         recording_menu.addAction(self.follow_action)
+        help_menu = self.menuBar().addMenu("&Help")
+        self.about_action = QAction(f"&About {APP_NAME}", self)
+        self.about_action.setStatusTip("Version, license and the project page")
+        self.about_action.triggered.connect(self.show_about)
+        help_menu.addAction(self.about_action)
+        self.about_qt_action = QAction("About &Qt", self)
+        self.about_qt_action.triggered.connect(lambda: QApplication.aboutQt())
+        help_menu.addAction(self.about_qt_action)
+        help_menu.addSeparator()
+        self.log_folder_action = QAction("Open &log folder", self)
+        self.log_folder_action.setStatusTip("Show the app's log files in Explorer")
+        self.log_folder_action.setEnabled(self._log_dir is not None)
+        self.log_folder_action.triggered.connect(self.open_log_folder)
+        help_menu.addAction(self.log_folder_action)
+        self.report_action = QAction("&Report a problem…", self)
+        self.report_action.setStatusTip("Open a new issue on the project's GitHub page")
+        self.report_action.triggered.connect(lambda: self.open_url(NEW_ISSUE_URL))
+        help_menu.addAction(self.report_action)
         self.setAcceptDrops(True)
 
         # Noise reduction / export progress, shown in the PROCESSING and EXPORTING states.
@@ -552,12 +584,14 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------ status bar
 
     def show_info(self, message: str) -> None:
+        self._status_error = False
         self.statusBar().setStyleSheet("")
         self.statusBar().showMessage(message)
 
     def show_error(self, message: str) -> None:
         log.warning("Status error: %s", message)
-        self.statusBar().setStyleSheet(_ERROR_STYLE)
+        self._status_error = True
+        self.statusBar().setStyleSheet(self._theme.status_error_style)
         self.statusBar().showMessage(message)
 
     @property
@@ -566,7 +600,39 @@ class MainWindow(QMainWindow):
 
     @property
     def status_is_error(self) -> bool:
-        return bool(self.statusBar().styleSheet())
+        return self._status_error
+
+    # ------------------------------------------------------------ theme and Help
+
+    @property
+    def theme(self) -> Theme:
+        """The light or dark colours in use (they follow the palette)."""
+        return self._theme
+
+    def _set_theme(self, theme: Theme) -> None:
+        self._theme = theme
+        self.warning_label.setStyleSheet(theme.banner_style)
+        if self._status_error:
+            self.statusBar().setStyleSheet(theme.status_error_style)
+        self.device_label.setStyleSheet(theme.error_style if self._device_missing else "")
+
+    def show_about(self) -> None:
+        """Help > About (window-modal; ``about_box`` while it is open)."""
+        if self.about_box is not None:
+            self.about_box.raise_()
+            return
+        box = about.make_about_box(self, self.open_path)
+        box.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
+        box.finished.connect(self._on_about_finished)
+        self.about_box = box
+        box.open()
+
+    def _on_about_finished(self, _result: int) -> None:
+        self.about_box = None
+
+    def open_log_folder(self) -> None:
+        if self._log_dir is not None:
+            self.open_folder(self._log_dir)
 
     @property
     def warning_text(self) -> str:
@@ -697,6 +763,7 @@ class MainWindow(QMainWindow):
         self._device = device
         if device is not None:
             self.device_label.setText(f"Recording from: {device.output_name}")
+            self._device_missing = False
             self.device_label.setStyleSheet("")
             self.device_detail_label.setText(device_summary(device))
             self.device_label.setToolTip(
@@ -705,11 +772,13 @@ class MainWindow(QMainWindow):
             )
         elif pending:
             self.device_label.setText("Recording from: detecting…")
+            self._device_missing = False
             self.device_label.setStyleSheet("")
             self.device_detail_label.setText("")
         else:
             self.device_label.setText("Recording from: no playback device found")
-            self.device_label.setStyleSheet("color: rgb(230, 70, 60);")
+            self._device_missing = True
+            self.device_label.setStyleSheet(self._theme.error_style)
             self.device_detail_label.setText("")
             self.device_label.setToolTip("")
 

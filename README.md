@@ -1,33 +1,46 @@
 # Desktop Audio Recorder
 
-A Windows 11 desktop app that records whatever is playing on your PC from the **current default playback device** using WASAPI loopback. You can play back and edit the clip, optionally clean up background noise, and save it as **.wav** or **.mp3**.
+A Windows app that records whatever your PC is playing: a video call, a stream, a game, a song. It captures the **current default playback device** (WASAPI loopback), so there's no virtual audio cable, "Stereo Mix" or microphone involved. You can then play the clip back, cut and fade it, clean up background noise, and save it as **WAV** or **MP3**.
 
-No virtual audio cable, "Stereo Mix" or ffmpeg is needed: loopback capture comes from PyAudioWPatch, and MP3 encoding from the bundled LAME library (`lameenc`).
+![The main window: a voice clip with a selection, the edit toolbar and the level meter](docs/screenshot.png)
+
+- Records the default output and **follows it** when Windows switches devices mid-recording (for example, to headphones).
+- Peak meter with a clip indicator; pause and resume within one take.
+- Waveform with zoom, selection, loop playback, and editing: delete, crop, silence, insert silence, fades, gain, normalize, with undo and redo (older steps move to disk, so even hour-long clips keep several).
+- Noise reduction for voice recordings, with an A/B preview.
+- Export to WAV (16-bit, 24-bit or 32-bit float) or MP3 (128–320 kbps), with dither for 16-bit.
+- Opens existing WAV, MP3, FLAC, OGG and AIFF files for editing.
+- Light and dark mode, following Windows.
+
+## Download
+1. Download `DesktopAudioRecorder-<version>-win64.zip` from the [latest release](https://github.com/bkazmierzak/desktop-audio-recorder/releases/latest).
+2. Unzip it anywhere (for example into `Documents` or `C:\Tools`). Nothing is installed.
+3. Run `DesktopAudioRecorder\DesktopAudioRecorder.exe`. Keep the **whole folder**: the exe doesn't work on its own.
+
+**"Windows protected your PC".** The app isn't code-signed (a certificate costs money every year), so Microsoft Defender SmartScreen warns about it the first time. Click **More info → Run anyway**. To check that the zip is the one published here, compare its SHA-256 with `SHA256SUMS.txt` on the release page:
+```powershell
+Get-FileHash .\DesktopAudioRecorder-1.0.0-win64.zip -Algorithm SHA256
+```
 
 ## Requirements
-- Windows 10 or 11 (64-bit).
-- To run from source: [uv](https://docs.astral.sh/uv/). uv installs Python 3.12 itself, so you don't need a system Python.
-- To run the packaged build: nothing else (Python and all libraries are inside the folder).
+- Windows 10 or 11, 64-bit.
+- A playback device (speakers, headphones, HDMI audio, …). The app records what it plays.
+- Nothing else: Python and all libraries are inside the folder.
 
-## Setup and run from source
-```powershell
-uv sync                              # creates .venv with Python 3.12 and every dependency
-uv run desktop-audio-recorder        # or: uv run python -m desktop_audio_recorder
-```
+## Privacy
+- The app **never connects to the internet** and has **no telemetry**, no update check and no account.
+- Recordings and logs stay on your PC (see below). Help → Report a problem and the link in Help → About only open the project page in your browser; nothing is sent automatically.
 
-## Build the Windows app (.exe)
-```powershell
-uv run python packaging/build.py              # build, self-test, zip
-uv run python packaging/build.py --no-smoke   # build and zip without the self-test (no sound)
-uv run python packaging/build.py --zip-only   # zip an existing build
-```
-This builds the folder `dist\DesktopAudioRecorder\` (about 200 MB) with `DesktopAudioRecorder.exe` inside, runs its self-test (below), and packs the folder plus this README into `dist\DesktopAudioRecorder-<version>-win64.zip`. To install, unzip anywhere and run `DesktopAudioRecorder.exe`; nothing else is installed. Keep the **whole folder**: the exe doesn't work on its own. It is a windowed app (no console), so messages go to the log file (see [Logs](#logs-and-errors)). The exe has the app's icon and a version resource (Properties → Details). `uv run pyinstaller packaging/desktop_audio_recorder.spec --noconfirm` builds without testing or zipping. The icon is drawn by `packaging/make_icon.py`.
+## Where data lives, and uninstalling
+| What | Where |
+|---|---|
+| The app | The folder you unzipped |
+| Your exports | Wherever you save them (the app remembers the folder) |
+| Settings (window size, export choices, …) | Registry: `HKEY_CURRENT_USER\Software\DesktopAudioRecorder` |
+| Logs (`app.log`, `crash.log`) | `%LOCALAPPDATA%\DesktopAudioRecorder\logs` (Help → Open log folder) |
+| The recording in progress, undo data | `%TEMP%\DesktopAudioRecorder` (deleted when the clip is discarded or the app closes) |
 
-To check a build on a machine, run its self-test. It plays a quiet 1 kHz tone (−26 dBFS) on the default playback device for about 3 s while it records, so expect to hear it:
-```powershell
-dist\DesktopAudioRecorder\DesktopAudioRecorder.exe --smoke-test C:\Temp\smoke
-```
-It records 2 s, plays the clip for a second, exports `smoke.wav` and `smoke.mp3`, reads both back, checks the log, saves `window.png` and writes `report.json`. Its exit code is 0 when every check passed. Its settings go to `smoke\settings.ini`; your own settings aren't touched.
+To uninstall, close the app and delete: the app folder, the `HKEY_CURRENT_USER\Software\DesktopAudioRecorder` key (in `regedit`, or `reg delete HKCU\Software\DesktopAudioRecorder /f`), `%LOCALAPPDATA%\DesktopAudioRecorder` and `%TEMP%\DesktopAudioRecorder`. Your exported files aren't touched.
 
 ## Using it
 
@@ -121,9 +134,14 @@ These are remembered in the registry under `HKEY_CURRENT_USER\Software\DesktopAu
 
 Delete that key to reset them.
 
-### Logs and errors
-- Logs are written to `%LOCALAPPDATA%\DesktopAudioRecorder\logs\app.log` (4 × 1 MB, rotating). A native crash is dumped to `crash.log` in the same folder.
-- An unexpected error shows a dialog with the details and an **Open log folder** button. The same error is shown only once, at most three dialogs appear per session, and nothing is shown while the app is quitting.
+### Light and dark mode
+The window follows the Windows app mode (Settings → Personalization → Colors → *Choose your mode*), and switches as soon as you change it, even mid-recording.
+
+### Help, logs and errors
+- **Help → About** shows the version, the license and the project page, with buttons that open the license and the third-party notices. **About Qt** shows Qt's own notice.
+- Logs are written to `%LOCALAPPDATA%\DesktopAudioRecorder\logs\app.log` (4 × 1 MB, rotating); **Help → Open log folder** opens the folder. A native crash is dumped to `crash.log` in the same folder.
+- **Help → Report a problem…** opens a new GitHub issue in your browser.
+- An unexpected error shows a dialog with the details, an **Open log folder** button and a **Report a problem** button. The same error is shown only once, at most three dialogs appear per session, and nothing is shown while the app is quitting.
 
 ## Limitations
 - **System output only.** It records what Windows plays on the default playback device. It doesn't record a microphone, and it doesn't record other devices except by making them the default.
@@ -147,7 +165,32 @@ Automated tests and measurements covered the following, but they haven't been tr
 5. **Listening tests.** Listen to a recording (including one that switched devices), an edited clip, a noise-reduced voice clip, and exported WAV and MP3 files. In this project's testing, audio was checked by measurement, not by ear.
 6. **Signing out with an unsaved clip.** The Save/Discard/Cancel question should appear.
 
-## Debug recorder
+## Build from source
+You need [uv](https://docs.astral.sh/uv/). It installs Python 3.12 itself, so you don't need a system Python.
+```powershell
+git clone https://github.com/bkazmierzak/desktop-audio-recorder.git
+cd desktop-audio-recorder
+uv sync                              # creates .venv with Python 3.12 and every dependency
+uv run desktop-audio-recorder        # or: uv run python -m desktop_audio_recorder
+```
+
+### Build the Windows app (.exe)
+```powershell
+uv run python packaging/build.py              # build, self-test, zip
+uv run python packaging/build.py --no-smoke   # build and zip without the self-test (no sound)
+uv run python packaging/build.py --zip-only   # zip an existing build
+```
+This builds the folder `dist\DesktopAudioRecorder\` (about 200 MB) with `DesktopAudioRecorder.exe` inside, writes `LICENSE` and `THIRD-PARTY-NOTICES.txt` next to the exe, runs its self-test (below), and packs the folder plus this README, `LICENSE` and the notices into `dist\DesktopAudioRecorder-<version>-win64.zip`. It is a windowed app (no console), so messages go to the log file (see [Logs](#logs-and-errors)). The exe has the app's icon and a version resource (Properties → Details). `uv run pyinstaller packaging/desktop_audio_recorder.spec --noconfirm` builds without the notices, testing or zipping. The icon is drawn by `packaging/make_icon.py`.
+
+`THIRD-PARTY-NOTICES.txt` is generated from the license files of every Python package in the build (their installed metadata), plus notes on the native libraries inside them and the full GPL, LGPL and Apache texts from `packaging/licenses/`.
+
+To check a build on a machine, run its self-test. It plays a quiet 1 kHz tone (−26 dBFS) on the default playback device for about 3 s while it records, so expect to hear it:
+```powershell
+dist\DesktopAudioRecorder\DesktopAudioRecorder.exe --smoke-test C:\Temp\smoke
+```
+It records 2 s, plays the clip for a second, exports `smoke.wav` and `smoke.mp3`, reads both back, checks the log, saves `window.png` and writes `report.json`. Its exit code is 0 when every check passed. Its settings go to `smoke\settings.ini`; your own settings aren't touched.
+
+### Debug recorder
 A headless recorder that writes the default playback device to a WAV file:
 ```powershell
 uv run python -m desktop_audio_recorder.audio.recorder --seconds 10 out.wav
@@ -161,3 +204,15 @@ uv run pytest -m "not hardware"  # skip tests that use the real audio device
 uv run ruff check .              # lint
 uv run ruff format .             # format
 ```
+The code is in `src/desktop_audio_recorder/`: `audio/` (devices, capture, playback), `editing/` (edit operations and undo), `processing/` (noise reduction), `export/` (WAV and MP3 writers) and `ui/` (PySide6 widgets). Only `ui/` uses Qt.
+
+## Contributing
+Bug reports and ideas are welcome in [GitHub issues](https://github.com/bkazmierzak/desktop-audio-recorder/issues) (Help → Report a problem opens a new one). Please include the app version (Help → About), your Windows version, the playback device, and the end of `app.log` (Help → Open log folder).
+
+Pull requests are welcome too. Before you open one:
+- `uv run pytest`, `uv run ruff check .` and `uv run ruff format --check .` must pass. The hardware tests play a quiet test tone on your default playback device; `-m "not hardware"` leaves them out.
+- Keep Qt out of `audio/`, `editing/`, `processing/` and `export/`.
+- Add dependencies with `uv add`, not by editing `pyproject.toml`.
+
+## License
+[MIT](LICENSE). The release build includes third-party libraries under their own licenses, among them Qt (LGPL-3.0), libsndfile (LGPL-2.1) and LAME (LGPL); see `THIRD-PARTY-NOTICES.txt` in the download.

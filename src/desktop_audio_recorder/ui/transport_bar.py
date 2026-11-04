@@ -9,6 +9,7 @@ from PySide6.QtGui import QColor, QFont, QFontDatabase, QIcon, QPainter, QPen, Q
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QSizePolicy, QWidget
 
 from desktop_audio_recorder.ui.state import AppState, controls_for
+from desktop_audio_recorder.ui.theme import Theme, watch_theme
 
 _ICON_PX = 32
 
@@ -96,14 +97,8 @@ class TransportBar(QWidget):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self._state = AppState.IDLE
-        red = QColor(220, 45, 45)
-        fg = self.palette().color(self.palette().ColorRole.ButtonText)
-        self._icons = {
-            "record": _icon("record", red),
-            "pause": _icon("pause", fg),
-            "resume": _icon("resume", fg),
-            "stop": _icon("stop", fg),
-        }
+        self._theme: Theme | None = None
+        self._icons = self._make_icons()
 
         self.record_button = self._button("Record", "record", "Start a new recording")
         self.pause_button = self._button("Pause", "pause", "Pause / resume the recording")
@@ -136,6 +131,24 @@ class TransportBar(QWidget):
         layout.addWidget(self.elapsed_label)
 
         self.set_state(AppState.IDLE)
+        watch_theme(self, self._set_theme)
+
+    def _make_icons(self) -> dict[str, QIcon]:
+        fg = self.palette().color(self.palette().ColorRole.ButtonText)
+        return {
+            "record": _icon("record", QColor(220, 45, 45)),
+            "pause": _icon("pause", fg),
+            "resume": _icon("resume", fg),
+            "stop": _icon("stop", fg),
+        }
+
+    def _set_theme(self, theme: Theme) -> None:
+        if self._theme is not None:  # the icons were drawn for another palette
+            self._icons = self._make_icons()
+            self.record_button.setIcon(self._icons["record"])
+            self.stop_button.setIcon(self._icons["stop"])
+        self._theme = theme
+        self.set_state(self._state)
 
     def _button(self, text: str, icon: str, tip: str) -> QPushButton:
         button = QPushButton(self._icons[icon], text, self)
@@ -164,11 +177,11 @@ class TransportBar(QWidget):
         self.pause_button.setText(c.pause_label)
         self.pause_button.setIcon(self._icons["resume" if state is AppState.PAUSED else "pause"])
         self.state_label.setText(_STATE_TEXT[state])
-        color = {
-            AppState.RECORDING: "color: rgb(230, 50, 50); font-weight: bold;",
-            AppState.PAUSED: "color: rgb(230, 170, 40); font-weight: bold;",
-        }.get(state, "")
-        self.state_label.setStyleSheet(color)
+        style = ""
+        if self._theme is not None and state in (AppState.RECORDING, AppState.PAUSED):
+            color = self._theme.recording if state is AppState.RECORDING else self._theme.warning
+            style = f"color: {color.name()}; font-weight: bold;"
+        self.state_label.setStyleSheet(style)
 
     def set_elapsed(self, seconds: float) -> None:
         self.elapsed_label.setText(format_elapsed(seconds))
@@ -197,8 +210,7 @@ class PlaybackBar(QWidget):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self._state = AppState.IDLE
-        fg = self.palette().color(self.palette().ColorRole.ButtonText)
-        self._icons = {kind: _icon(kind, fg) for kind in ("play", "pause", "stop", "loop")}
+        self._icons = self._make_icons()
 
         self.play_button = self._button("Play", "play", "Play / pause the clip (Space)")
         self.stop_button = self._button("Stop", "stop", "Stop playback and go back to the start")
@@ -228,6 +240,20 @@ class PlaybackBar(QWidget):
         layout.addWidget(self.position_label)
 
         self.set_state(AppState.IDLE)
+        self._themed = False
+        watch_theme(self, self._set_theme)
+
+    def _make_icons(self) -> dict[str, QIcon]:
+        fg = self.palette().color(self.palette().ColorRole.ButtonText)
+        return {kind: _icon(kind, fg) for kind in ("play", "pause", "stop", "loop")}
+
+    def _set_theme(self, _theme: Theme) -> None:
+        if self._themed:  # the icons were drawn for another palette
+            self._icons = self._make_icons()
+            self.stop_button.setIcon(self._icons["stop"])
+            self.loop_button.setIcon(self._icons["loop"])
+            self.set_state(self._state)
+        self._themed = True
 
     def _button(self, text: str, icon: str, tip: str) -> QPushButton:
         button = QPushButton(self._icons[icon], text, self)

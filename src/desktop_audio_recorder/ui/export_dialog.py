@@ -48,6 +48,7 @@ from desktop_audio_recorder.export.writers import (
     estimate_bytes,
     mp3_rate,
 )
+from desktop_audio_recorder.ui.theme import watch_theme
 from desktop_audio_recorder.ui.transport_bar import format_elapsed
 
 FILTERS = {
@@ -222,7 +223,7 @@ class ExportDialog(QDialog):
         root.addWidget(self.summary_label)
         self.warning_label = QLabel(self)
         self.warning_label.setWordWrap(True)
-        self.warning_label.setStyleSheet("color: rgb(230, 160, 40);")
+        watch_theme(self, lambda theme: self.warning_label.setStyleSheet(theme.warning_style))
         root.addWidget(self.warning_label)
 
         self.buttons = QDialogButtonBox(

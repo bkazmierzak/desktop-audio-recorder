@@ -46,3 +46,13 @@ def test_main_window_builds():
     assert "Desktop Audio Recorder" in window.windowTitle()
     window.close()
     app.processEvents()
+
+
+def test_package_version_matches_the_project_version():
+    """``__version__`` (the window title, About, the exe's version resource) and pyproject.toml
+    (``uv version``) must not drift apart."""
+    import importlib.metadata
+
+    from desktop_audio_recorder import __version__
+
+    assert __version__ == importlib.metadata.version("desktop-audio-recorder")

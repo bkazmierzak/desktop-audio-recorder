@@ -7,7 +7,9 @@
 #
 #   dist/DesktopAudioRecorder/DesktopAudioRecorder.exe --smoke-test <folder>
 #
-# packaging/build.py does both and zips the folder for distribution.
+# packaging/build.py does both, writes THIRD-PARTY-NOTICES.txt and LICENSE next to the exe, and
+# zips the folder for distribution. For the notices, this spec lists the top-level modules and
+# folders in the bundle in <workpath>/bundled-top-level.json.
 #
 # The exe carries the app icon (src/desktop_audio_recorder/resources/app.ico, drawn by
 # packaging/make_icon.py; the window uses the same file at run time) and a version resource
@@ -15,7 +17,9 @@
 #
 # Native libraries and how they get in:
 # * pyaudiowpatch: PortAudio is linked into _portaudiowpatch.pyd (found by import analysis).
-# * sounddevice: _sounddevice_data/portaudio-binaries/libportaudio64bit*.dll (contrib hook).
+# * sounddevice: _sounddevice_data/portaudio-binaries/libportaudio64bit.dll (contrib hook; the
+#   ASIO variant is left out: sounddevice loads it only when SD_ENABLE_ASIO is set, and it
+#   carries Steinberg's ASIO SDK, which has its own license).
 # * soundfile: _soundfile_data/libsndfile_x64.dll, with mpg123/LAME inside (contrib hook).
 # * lameenc: lameenc.cp312-win_amd64.pyd (import analysis).
 # * PySide6 essentials: QtCore/QtGui/QtWidgets plus the platforms/windows, styles and
@@ -24,6 +28,7 @@
 # noisereduce depends on matplotlib but never imports it at run time (plotting is optional);
 # joblib and tqdm are imported, so they stay.
 
+import json
 import re
 from pathlib import Path
 
@@ -111,13 +116,26 @@ a = Analysis(  # noqa: F821
     noarchive=False,
 )
 
-# The 32-bit, ARM and macOS PortAudio variants sounddevice ships are never loaded on x64.
+# The 32-bit, ARM and macOS PortAudio variants sounddevice ships are never loaded on x64, and
+# the ASIO one only with SD_ENABLE_ASIO.
 def _wanted(entry):
-    return not any(tag in Path(entry[0]).name for tag in ("32bit", "arm64", ".dylib"))
+    return not any(tag in Path(entry[0]).name for tag in ("32bit", "arm64", ".dylib", "-asio"))
 
 
 a.binaries = [entry for entry in a.binaries if _wanted(entry)]
 a.datas = [entry for entry in a.datas if _wanted(entry)]
+
+
+def _top_level(name):
+    """'numpy.linalg' -> 'numpy'; 'PySide6/Qt6Core.dll' -> 'PySide6'; 'lameenc.cp312.pyd' ->
+    'lameenc'."""
+    return re.split(r"[\\/]", name, maxsplit=1)[0].split(".")[0]
+
+
+_bundled = sorted({_top_level(entry[0]) for entry in (*a.pure, *a.binaries, *a.datas)})
+(Path(workpath) / "bundled-top-level.json").write_text(  # noqa: F821 - defined by PyInstaller
+    json.dumps(_bundled, indent=0), encoding="utf-8"
+)
 
 pyz = PYZ(a.pure)  # noqa: F821
 

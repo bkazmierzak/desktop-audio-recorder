@@ -27,6 +27,7 @@ from PySide6.QtWidgets import QScrollBar, QVBoxLayout, QWidget
 
 from desktop_audio_recorder.audio.clip import AudioClip
 from desktop_audio_recorder.audio.envelope import EnvelopePyramid
+from desktop_audio_recorder.ui.theme import Theme, watch_theme
 
 MIN_VIEW_FRAMES = 64  # deepest zoom: this many frames across the view
 BINS_PER_PIXEL = 2
@@ -132,25 +133,9 @@ class WaveformView(QWidget):
         self.follow_playhead = True
         self.envelope_updates = 0  # for tests / diagnostics
 
-        dark = self.palette().color(QPalette.ColorRole.Window).lightness() < 128
-        background = self.palette().color(QPalette.ColorRole.Base)
-        self._wave_color = QColor(90, 170, 255) if dark else QColor(25, 100, 190)
-        guide = QColor(255, 255, 255, 50) if dark else QColor(0, 0, 0, 50)
-        # Neutral selection (not the accent colour, which may be as orange as the playhead).
-        ink = QColor(255, 255, 255) if dark else QColor(0, 0, 0)
-        selection_fill = QColor(ink)
-        selection_fill.setAlpha(45 if dark else 35)
-        selection_edge = QPen(QColor(ink.red(), ink.green(), ink.blue(), 150))
-        selection_edge.setCosmetic(True)
-        selection_edge_hover = QPen(ink)
-        selection_edge_hover.setCosmetic(True)
-        selection_edge_hover.setWidth(2)
-
         self._vb = _WaveViewBox()
         self.axis = TimeAxis("bottom")
-        self.plot_widget = pg.PlotWidget(
-            self, viewBox=self._vb, axisItems={"bottom": self.axis}, background=background
-        )
+        self.plot_widget = pg.PlotWidget(self, viewBox=self._vb, axisItems={"bottom": self.axis})
         self.plot_widget.setFrameShape(self.plot_widget.Shape.NoFrame)
         plot = self.plot_widget.getPlotItem()
         plot.hideAxis("left")
@@ -158,33 +143,17 @@ class WaveformView(QWidget):
         plot.setMenuEnabled(False)
         plot.layout.setContentsMargins(0, 4, 0, 0)
 
-        guide_pen = QPen(guide)
-        guide_pen.setStyle(Qt.PenStyle.DashLine)
-        guide_pen.setCosmetic(True)
-        self._guides = [
-            pg.InfiniteLine(y, angle=0, pen=guide_pen, movable=False) for y in (-1.0, 1.0)
-        ]
-        zero_pen = QPen(guide)
-        zero_pen.setCosmetic(True)
-        self._guides.append(pg.InfiniteLine(0.0, angle=0, pen=zero_pen, movable=False))
+        self._guides = [pg.InfiniteLine(y, angle=0, movable=False) for y in (-1.0, 1.0, 0.0)]
         for line in self._guides:
             line.setZValue(-10)
             self._vb.addItem(line, ignoreBounds=True)
 
-        wave_pen = QPen(self._wave_color)
-        wave_pen.setCosmetic(True)
-        wave_pen.setWidth(1)
-        self.curve = pg.PlotDataItem(
-            pen=wave_pen, antialias=False, skipFiniteCheck=True, connect="all"
-        )
+        self.curve = pg.PlotDataItem(antialias=False, skipFiniteCheck=True, connect="all")
         self._vb.addItem(self.curve)
 
         self.region = _SelectionRegion(
             values=(0, 0),
             orientation="vertical",
-            brush=selection_fill,
-            pen=selection_edge,
-            hoverPen=selection_edge_hover,
             movable=True,
         )
         self.region.setZValue(5)
@@ -222,7 +191,41 @@ class WaveformView(QWidget):
         self.playhead.sigDragged.connect(self._on_playhead_dragged)
         self.playhead.sigPositionChangeFinished.connect(self._on_playhead_released)
 
+        self._wave_color = QColor()
+        watch_theme(self, self._set_theme)
         self.set_clip(None)
+
+    def _set_theme(self, theme: Theme) -> None:
+        """Colours for the light or dark palette (at start and when Windows switches)."""
+        self._wave_color = QColor(theme.wave)
+        self.plot_widget.setBackground(self.palette().color(QPalette.ColorRole.Base))
+        guide = QColor(theme.ink)
+        guide.setAlpha(50)
+        for line in self._guides:
+            pen = QPen(guide)
+            pen.setCosmetic(True)
+            if line.value() != 0.0:
+                pen.setStyle(Qt.PenStyle.DashLine)  # the full-scale lines
+            line.setPen(pen)
+        wave_pen = QPen(self._wave_color)
+        wave_pen.setCosmetic(True)
+        wave_pen.setWidth(1)
+        self.curve.setPen(wave_pen)
+        # Neutral selection (not the accent colour, which may be as orange as the playhead).
+        ink = theme.ink
+        fill = QColor(ink)
+        fill.setAlpha(45 if theme.dark else 35)
+        self.region.setBrush(fill)
+        edge = QPen(QColor(ink.red(), ink.green(), ink.blue(), 150))
+        edge.setCosmetic(True)
+        hover = QPen(ink)
+        hover.setCosmetic(True)
+        hover.setWidth(2)
+        for line in self.region.lines:
+            line.setPen(edge)
+            line.setHoverPen(hover)
+        self.axis.setPen(self.palette().color(QPalette.ColorRole.WindowText))
+        self.axis.setTextPen(self.palette().color(QPalette.ColorRole.WindowText))
 
     # ------------------------------------------------------------------ clip
 

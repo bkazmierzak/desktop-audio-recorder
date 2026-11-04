@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # build.py reads the Python license from a uv-managed (python-build-standalone) install;
+  # use one everywhere so CI matches the dev machine and the release build.
+  UV_PYTHON_PREFERENCE: only-managed
+  PYTHONUTF8: "1"
+
+jobs:
+  test:
+    name: Lint and test (Windows)
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: "0.13.1"
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Install
+        run: uv sync --locked
+
+      - name: Ruff check
+        run: uv run ruff check .
+
+      - name: Ruff format
+        run: uv run ruff format --check .
+
+      # Runners have no audio device: the hardware tests (which play a tone) are deselected,
+      # and tests that need a device skip themselves without one.
+      - name: Tests
+        run: uv run pytest -m "not hardware" -rs

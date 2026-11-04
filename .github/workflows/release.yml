@@ -1,0 +1,69 @@
+name: Release
+
+# A tag v<version>[-<pre-release>] builds the zip and makes a DRAFT release with it, its
+# SHA256SUMS.txt and the version's CHANGELOG.md section. Publishing the draft is done by hand.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  # build.py reads the Python license from sys.base_prefix\LICENSE.txt, which uv-managed
+  # (python-build-standalone) installs have.
+  UV_PYTHON_PREFERENCE: only-managed
+  PYTHONUTF8: "1"
+
+jobs:
+  release:
+    name: Build and draft the release
+    runs-on: windows-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write # gh release create
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: "0.13.1"
+          enable-cache: false # a release builds from a clean environment
+
+      - name: Install
+        run: uv sync --locked
+
+      - name: Check the tag against the package version
+        run: uv run python packaging/release_tools.py check-tag "$env:GITHUB_REF_NAME"
+
+      - name: Tests
+        run: uv run pytest -m "not hardware" -rs
+
+      # No smoke test: it records and plays a tone, and runners have no audio device.
+      - name: Build the zip
+        run: uv run python packaging/build.py --no-smoke
+
+      - name: Checksums and notes
+        run: |
+          $zip = Get-ChildItem dist -Filter "DesktopAudioRecorder-*-win64.zip"
+          if (@($zip).Count -ne 1) { throw "expected one zip in dist, found $(@($zip).Count)" }
+          uv run python packaging/release_tools.py checksums $zip.FullName --out dist/SHA256SUMS.txt
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          uv run python packaging/release_tools.py notes "$env:GITHUB_REF_NAME" --out dist/RELEASE_NOTES.md
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          "ZIP=$($zip.FullName)" >> $env:GITHUB_ENV
+
+      - name: Create the draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = $env:GITHUB_REF_NAME
+          $title = "Desktop Audio Recorder $($tag.Substring(1))"
+          $flags = @("--draft", "--verify-tag", "--title", $title, "--notes-file", "dist/RELEASE_NOTES.md")
+          if ($tag.Contains("-")) { $flags += "--prerelease" }
+          gh release create $tag $env:ZIP dist/SHA256SUMS.txt @flags
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }

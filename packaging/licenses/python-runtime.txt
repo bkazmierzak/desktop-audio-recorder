@@ -1,13 +1,14 @@
-Libraries inside the Python runtime (in _internal: python312.dll, _ctypes.pyd and
-libffi-8.dll, pyexpat.pyd, _decimal.pyd, _lzma.pyd). bzip2 and the Microsoft C runtime are
-covered by the Python license above; OpenSSL (libssl-3-x64.dll, libcrypto-3-x64.dll) is under
-the Apache License 2.0 (its text is under "Full license texts").
+Libraries inside the Python runtime, the uv-managed Python 3.12.15 from
+python-build-standalone 20261013 (in _internal: python312.dll, _ctypes.pyd and libffi-8.dll,
+pyexpat.pyd, _decimal.pyd, _lzma.pyd). bzip2 and the Microsoft C runtime are covered by the
+Python license above; OpenSSL (libssl-3-x64.dll, libcrypto-3-x64.dll) is under the Apache
+License 2.0 (its text is under "Full license texts").
 
 ------------------------------------------------------------------------
-libffi (libffi-8.dll), MIT License
+libffi 3.4.2 (libffi-8.dll), MIT License
 https://github.com/libffi/libffi
 
-libffi - Copyright (c) 1996-2024  Anthony Green, Red Hat, Inc and others.
+libffi - Copyright (c) 1996-2021  Anthony Green, Red Hat, Inc and others.
 See source files for details.
 
 Permission is hereby granted, free of charge, to any person obtaining
@@ -30,7 +31,7 @@ TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------
-Expat (pyexpat.pyd), MIT License
+Expat 2.8.5 (pyexpat.pyd), MIT License
 https://libexpat.github.io/
 
 Copyright (c) 1998-2000 Thai Open Source Software Center Ltd and Clark Cooper
@@ -56,10 +57,10 @@ TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------
-mpdecimal (_decimal.pyd), BSD 2-Clause License
+libmpdec 2.5.1 (_decimal.pyd), the copy included in CPython, BSD 2-Clause License
 https://www.bytereef.org/mpdecimal/
 
-Copyright (c) 2008-2024 Stefan Krah. All rights reserved.
+Copyright (c) 2008-2020 Stefan Krah. All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions
@@ -85,10 +86,10 @@ OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 SUCH DAMAGE.
 
 ------------------------------------------------------------------------
-zlib (inside python312.dll), zlib License
+zlib 1.3.2 (inside python312.dll), zlib License
 https://zlib.net/
 
-Copyright (C) 1995-2024 Jean-loup Gailly and Mark Adler
+Copyright (C) 1995-2026 Jean-loup Gailly and Mark Adler
 
 This software is provided 'as-is', without any express or implied
 warranty.  In no event will the authors be held liable for any damages
@@ -106,17 +107,21 @@ freely, subject to the following restrictions:
    misrepresented as being the original software.
 3. This notice may not be removed or altered from any source distribution.
 
+Jean-loup Gailly        Mark Adler
+jloup@gzip.org          madler@alumni.caltech.edu
+
 ------------------------------------------------------------------------
-XZ Utils / liblzma (_lzma.pyd), BSD Zero Clause License (0BSD)
+XZ Utils 5.8.4 / liblzma (_lzma.pyd), BSD Zero Clause License (0BSD)
 https://tukaani.org/xz/
 
-Permission to use, copy, modify, and/or distribute this software for any
-purpose with or without fee is hereby granted.
+Permission to use, copy, modify, and/or distribute this
+software for any purpose with or without fee is hereby granted.
 
-THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
-WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
-MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
-ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
-WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
-ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
-OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL
+WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
+WARRANTIES OF MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL
+THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR
+CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
+LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT,
+NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
+CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.

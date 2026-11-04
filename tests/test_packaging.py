@@ -1,7 +1,11 @@
 """packaging/build.py's third-party notices (without building anything)."""
 
+import decimal
 import importlib.metadata as metadata
 import importlib.util
+import pyexpat
+import sys
+import zlib
 from pathlib import Path
 
 import pytest
@@ -70,8 +74,33 @@ def test_notices_text(build):
         "Version 2.1, February 1999",  # LGPL-2.1
         "Apache License",
         "Copyright (c) 1999-2011 Ross Bencina and Phil Burk",  # PortAudio
-        "Copyright (c) 1996-2024  Anthony Green",  # libffi, in the Python runtime
+        "Copyright (c) 1996-2021  Anthony Green",  # libffi 3.4.2, in the Python runtime
+        "Copyright (c) 2008-2020 Stefan Krah",  # libmpdec 2.5.1
+        "Copyright (C) 1995-2026 Jean-loup Gailly and Mark Adler",  # zlib 1.3.2
     ):
         assert needle in text, needle
     # A license file that two distributions share is written once, then referred to.
     assert text.count("Licensees holding valid commercial Qt licenses") == 1
+
+
+def test_python_runtime_licenses_match_this_python(build):
+    """python-runtime.txt names the library versions its copyright lines were checked against.
+
+    If this fails, the uv-managed Python changed: compare each section of
+    packaging/licenses/python-runtime.txt with the new version's upstream license, then update
+    the versions in its headings.
+    """
+    text = (build.LICENSES / "python-runtime.txt").read_text(encoding="utf-8")
+    expat = pyexpat.EXPAT_VERSION.removeprefix("expat_")
+    for heading in (
+        f"Python {sys.version.split()[0]}",
+        f"zlib {zlib.ZLIB_RUNTIME_VERSION} (inside python312.dll)",
+        f"Expat {expat} (pyexpat.pyd)",
+        f"libmpdec {decimal.__libmpdec_version__} (_decimal.pyd)",
+    ):
+        assert heading in text, heading
+    # libffi and XZ don't report their versions; python-build-standalone's build tag pins them.
+    tag_file = Path(sys.base_prefix) / "BUILD"
+    if not tag_file.exists():
+        pytest.skip("not a python-build-standalone Python (no BUILD file)")
+    assert f"python-build-standalone {tag_file.read_text().strip()}" in text

@@ -1,0 +1,71 @@
+[project]
+name = "desktop-audio-recorder"
+version = "0.1.0"
+description = "Record Windows desktop audio (WASAPI loopback), edit, denoise, and export to WAV/MP3."
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [
+    { name = "bkazmierzak", email = "50677281+bkazmierzak@users.noreply.github.com" }
+]
+requires-python = ">=3.12"
+keywords = ["audio", "recorder", "wasapi", "loopback", "windows", "pyside6", "mp3", "wav"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Environment :: Win32 (MS Windows)",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: Microsoft :: Windows :: Windows 10",
+    "Operating System :: Microsoft :: Windows :: Windows 11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Multimedia :: Sound/Audio :: Capture/Recording",
+    "Topic :: Multimedia :: Sound/Audio :: Editors",
+]
+dependencies = [
+    "comtypes>=1.4.17",
+    "lameenc>=1.9.0",
+    "noisereduce>=3.0.3",
+    "numpy>=2.5.4",
+    "pyaudiowpatch>=0.2.12.9",
+    "pyqtgraph>=0.14.0",
+    "pyside6-essentials>=6.12.0",
+    "scipy>=1.18.1",
+    "sounddevice>=0.5.6",
+    "soundfile>=0.14.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/bkazmierzak/desktop-audio-recorder"
+Issues = "https://github.com/bkazmierzak/desktop-audio-recorder/issues"
+Changelog = "https://github.com/bkazmierzak/desktop-audio-recorder/blob/main/CHANGELOG.md"
+
+[project.scripts]
+desktop-audio-recorder = "desktop_audio_recorder.app:main"
+
+[build-system]
+requires = ["uv_build>=0.13.1,<0.14.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pyinstaller>=6.22.3",
+    "pytest>=9.2.0",
+    "pytest-qt>=4.5.0",
+    "ruff>=0.17.3",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+qt_api = "pyside6"
+filterwarnings = [
+    # sounddevice 0.5.6 sets ndarray.shape, deprecated in NumPy 2.5 (not our code).
+    "ignore:Setting the shape on a NumPy array:DeprecationWarning:sounddevice",
+]

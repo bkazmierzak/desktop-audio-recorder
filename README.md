@@ -206,11 +206,13 @@ uv run ruff format .             # format
 ```
 The code is in `src/desktop_audio_recorder/`: `audio/` (devices, capture, playback), `editing/` (edit operations and undo), `processing/` (noise reduction), `export/` (WAV and MP3 writers) and `ui/` (PySide6 widgets). Only `ui/` uses Qt.
 
+GitHub Actions run ruff and `pytest -m "not hardware"` on Windows for every push and pull request (`.github/workflows/ci.yml`; the runners have no audio device, so tests that need one skip). Pushing a tag `v<version>` (or `v<version>-rc1` and similar, which must match `__version__`) runs `.github/workflows/release.yml`: it tests, builds the zip without the self-test, and makes a **draft** release with the zip, `SHA256SUMS.txt` and that version's `CHANGELOG.md` section. Publishing the draft is done by hand.
+
 ## Contributing
 Bug reports and ideas are welcome in [GitHub issues](https://github.com/bkazmierzak/desktop-audio-recorder/issues) (Help → Report a problem opens a new one). Please include the app version (Help → About), your Windows version, the playback device, and the end of `app.log` (Help → Open log folder).
 
 Pull requests are welcome too. Before you open one:
-- `uv run pytest`, `uv run ruff check .` and `uv run ruff format --check .` must pass. The hardware tests play a quiet test tone on your default playback device; `-m "not hardware"` leaves them out.
+- `uv run pytest`, `uv run ruff check .` and `uv run ruff format --check .` must pass. The hardware tests play a quiet test tone on your default playback device; `-m "not hardware"` leaves them out. CI runs the same checks, without the hardware tests.
 - Keep Qt out of `audio/`, `editing/`, `processing/` and `export/`.
 - Add dependencies with `uv add`, not by editing `pyproject.toml`.
 

@@ -22,6 +22,8 @@ A Windows app that records whatever your PC is playing: a video call, a stream, 
 Get-FileHash .\DesktopAudioRecorder-1.0.0-win64.zip -Algorithm SHA256
 ```
 
+**Smart App Control.** If Smart App Control is **On** (Windows Security → App & browser control), Windows may block the unsigned app outright, with no "Run anyway". This hasn't been tried yet. Smart App Control can't be switched off for one app.
+
 ## Requirements
 - Windows 10 or 11, 64-bit.
 - A playback device (speakers, headphones, HDMI audio, …). The app records what it plays.
@@ -153,17 +155,19 @@ The window follows the Windows app mode (Settings → Personalization → Colors
 - **Noise reduction is classic spectral gating, not a neural model.** At high strength it can sound "watery". Steady noise with a noise profile works best.
 - **One clip at a time.** The app has no multi-track editing. Opened files are read whole into memory (about 1.4 GB per hour of audio at 48 kHz, whatever the file's format).
 
-### Not yet checked by hand
-Automated tests and measurements covered the following, but they haven't been tried by a person yet:
-1. **Switching the default output.** Change the default output in Settings → Sound:
+### Known limitations: not yet tried by hand
+Automated tests and measurements cover everything below, and the packaged app passes its built-in self-test (record, play, export, About). But no one has tried these by hand yet, and the packaged app has only run on the developer's PC. Reports are welcome (see [Contributing](#contributing)).
+1. **A fresh PC.** Running the downloaded zip on a PC without Python, getting past SmartScreen (see [Download](#download)), and a full record → edit → export round trip there.
+2. **Switching the default output.** Change the default output in Settings → Sound:
    - While idle, the "Recording from:" line should update within about a second.
    - During a recording, the recording should move to the new device ("Now recording from …") and the exported clip should contain both parts. With Recording → Follow the default playback device off, the yellow warning should appear instead.
    - **Play** should then play on the new device.
-2. **Unplugging the recorded device mid-recording** (for example USB or Bluetooth headphones). The recording should move to the device Windows picks next, or stop with "… was disconnected" and keep the audio.
-3. **The Save As and Open dialogs.** Export… → Browse…, pick the MP3 type and type a name without an extension. The dialog should switch to MP3 and show `<name>.mp3`. Picking an existing file should ask to replace it once. File → Open… should list audio files and open the chosen one.
-4. **Opening from Explorer.** Drag an MP3 onto the window, and use "Open with" → `DesktopAudioRecorder.exe` on a WAV.
-5. **Listening tests.** Listen to a recording (including one that switched devices), an edited clip, a noise-reduced voice clip, and exported WAV and MP3 files. In this project's testing, audio was checked by measurement, not by ear.
-6. **Signing out with an unsaved clip.** The Save/Discard/Cancel question should appear.
+3. **Unplugging the recorded device mid-recording** (for example USB or Bluetooth headphones). The recording should move to the device Windows picks next, or stop with "… was disconnected" and keep the audio.
+4. **The Save As and Open dialogs.** Export… → Browse…, pick the MP3 type and type a name without an extension. The dialog should switch to MP3 and show `<name>.mp3`. Picking an existing file should ask to replace it once. File → Open… should list audio files and open the chosen one.
+5. **Opening from Explorer.** Drag an MP3 onto the window, and use "Open with" → `DesktopAudioRecorder.exe` on a WAV.
+6. **Listening tests.** Listen to a recording (including one that switched devices), an edited clip, a noise-reduced voice clip, and exported WAV and MP3 files. In this project's testing, audio was checked by measurement, not by ear.
+7. **Signing out with an unsaved clip.** The Save/Discard/Cancel question should appear.
+8. **Switching Windows between light and dark mode while the app is open.** Both themes were checked in screenshots with the scheme set inside the app, not by changing the Windows setting.
 
 ## Build from source
 You need [uv](https://docs.astral.sh/uv/). It installs Python 3.12 itself, so you don't need a system Python.

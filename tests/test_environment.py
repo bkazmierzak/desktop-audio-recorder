@@ -27,9 +27,11 @@ def test_wasapi_loopback_available():
     pa = pyaudio.PyAudio()
     try:
         try:
-            pa.get_host_api_info_by_type(pyaudio.paWASAPI)
+            wasapi = pa.get_host_api_info_by_type(pyaudio.paWASAPI)
         except OSError:
             pytest.skip("WASAPI host API not available on this machine")
+        if wasapi["defaultOutputDevice"] < 0:  # e.g. a CI runner: WASAPI but no audio device
+            pytest.skip("no default playback device")
         loopback = pa.get_default_wasapi_loopback()
         assert loopback["maxInputChannels"] > 0
     finally:

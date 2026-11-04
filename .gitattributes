@@ -1,5 +1,9 @@
 * text=auto
 
+# The vendored license texts are stored and checked out with LF (tests/test_packaging.py checks
+# it), whatever core.autocrlf says; build.py writes the notices with CRLF.
+packaging/licenses/*.txt text eol=lf
+
 *.ico binary
 *.png binary
 *.wav binary

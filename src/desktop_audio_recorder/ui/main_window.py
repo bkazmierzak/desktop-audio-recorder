@@ -372,6 +372,7 @@ class MainWindow(QMainWindow):
         self.about_box: QMessageBox | None = None  # Help > About, while it is open
         self._theme: Theme = LIGHT
         self._status_error = False
+        self._status_error_is_device = False  # a successful device lookup clears it
         self._device_missing = False
 
         self._build_ui()
@@ -585,12 +586,15 @@ class MainWindow(QMainWindow):
 
     def show_info(self, message: str) -> None:
         self._status_error = False
+        self._status_error_is_device = False
         self.statusBar().setStyleSheet("")
         self.statusBar().showMessage(message)
 
-    def show_error(self, message: str) -> None:
+    def show_error(self, message: str, *, device: bool = False) -> None:
+        """Show an error in the status bar; `device` errors go when a device is found again."""
         log.warning("Status error: %s", message)
         self._status_error = True
+        self._status_error_is_device = device
         self.statusBar().setStyleSheet(self._theme.status_error_style)
         self.statusBar().showMessage(message)
 
@@ -815,8 +819,8 @@ class MainWindow(QMainWindow):
         self._set_device(device)
         if changed:
             log.info("Default playback device: %s", device.output_name)
-        if self.status_is_error and self._sm.state is AppState.IDLE:
-            self.show_info("Ready")
+        if self._status_error_is_device and self._sm.state is AppState.IDLE:
+            self.show_info("Ready")  # only the device's own error: others stay until replaced
 
     def _on_device_error(self, exc: BaseException) -> None:
         self._refresh_finished()
@@ -824,10 +828,10 @@ class MainWindow(QMainWindow):
             return
         self._set_device(None)
         if isinstance(exc, DeviceError):
-            self.show_error(f"No playback device: {describe_error(exc)}")
+            self.show_error(f"No playback device: {describe_error(exc)}", device=True)
         else:
             log.error("Device refresh failed", exc_info=exc)
-            self.show_error(f"Could not query audio devices: {describe_error(exc)}")
+            self.show_error(f"Could not query audio devices: {describe_error(exc)}", device=True)
 
     def changeEvent(self, event: QEvent) -> None:
         super().changeEvent(event)
@@ -1079,7 +1083,7 @@ class MainWindow(QMainWindow):
         self._go(self._start_previous)
         if isinstance(exc, DeviceError):
             self._set_device(None)
-            self.show_error(f"Cannot record: {describe_error(exc)}")
+            self.show_error(f"Cannot record: {describe_error(exc)}", device=True)
         else:
             log.error("Could not start recording", exc_info=exc)
             self.show_error(f"Could not start recording: {describe_error(exc)}")

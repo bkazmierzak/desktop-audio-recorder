@@ -289,6 +289,26 @@ def test_start_portaudio_error_shown_in_status_bar(window, recorder, qtbot):
     assert window.status_text == "Could not start recording: [Errno -9996] Invalid device"
 
 
+def test_device_refresh_keeps_an_unrelated_error(window, dm, qtbot):
+    # Activating the window refreshes the device; that must not hide, say, an export error.
+    window.show_error("Could not export take.wav: disk full")
+    dm.device = make_loopback("Headphones (USB Audio)", channels=2)
+    click(qtbot, window.refresh_button)
+    qtbot.waitUntil(lambda: "Headphones" in window.device_label.text(), timeout=TIMEOUT)
+    assert window.status_is_error
+    assert window.status_text == "Could not export take.wav: disk full"
+
+
+def test_device_refresh_clears_a_cannot_record_error(window, recorder, dm, qtbot):
+    recorder.start_error = DeviceError("No default playback device is set in Windows.")
+    click(qtbot, window.transport.record_button)
+    qtbot.waitUntil(lambda: window.status_is_error, timeout=TIMEOUT)
+    click(qtbot, window.refresh_button)
+    qtbot.waitUntil(lambda: not window.status_is_error, timeout=TIMEOUT)
+    assert window.status_text == "Ready"
+    assert "INZONE" in window.device_label.text()
+
+
 def test_stop_failure_shown_in_status_bar(window, recorder, qtbot):
     start(qtbot, window)
     error = RecorderError("recording failed")

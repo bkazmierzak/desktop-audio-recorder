@@ -149,13 +149,28 @@ def test_integer_formats_clip_overs(tmp_path, subtype, bits):
     assert np.max(np.abs(back[inside, 0] - x[inside, 0])) <= step / 2 + 1e-12
 
 
+def without_peak_timestamp(data: bytes) -> bytes:
+    """The WAV bytes with the PEAK chunk's timestamp zeroed (float WAVs only have one).
+
+    libsndfile stamps the PEAK chunk with the current time in seconds, so two identical writes
+    differ when they straddle a second.
+    """
+    at = data.find(b"PEAK", 12)
+    if at < 0:
+        return data
+    stamp = at + 8 + 4  # chunk id and size, then the version field, then the timestamp
+    return data[:stamp] + bytes(4) + data[stamp + 4 :]
+
+
 @pytest.mark.parametrize("subtype", ["PCM_16", "PCM_24", "FLOAT"])
 def test_chunked_write_equals_one_chunk(tmp_path, subtype):
     rng = np.random.default_rng(3)
     x = rng.uniform(-1.2, 1.2, (10_007, 2)).astype(np.float32)
     write_wav(x, RATE, tmp_path / "one.wav", subtype, chunk_frames=1 << 20)
     write_wav(x, RATE, tmp_path / "many.wav", subtype, chunk_frames=999)
-    assert (tmp_path / "one.wav").read_bytes() == (tmp_path / "many.wav").read_bytes()
+    one, many = (tmp_path / "one.wav").read_bytes(), (tmp_path / "many.wav").read_bytes()
+    assert (b"PEAK" in one[:200]) == (subtype == "FLOAT")
+    assert without_peak_timestamp(one) == without_peak_timestamp(many)
 
 
 def test_wav_progress_reaches_one(tmp_path):
